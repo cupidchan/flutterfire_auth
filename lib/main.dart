@@ -11,6 +11,8 @@ import 'package:firebase_ui_oauth_google/firebase_ui_oauth_google.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:go_router/go_router.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import 'config.dart';
 import 'decorations.dart';
@@ -104,73 +106,62 @@ class FirebaseAuthUIExample extends StatelessWidget {
       initialRoute: initialRoute,
       routes: {
         '/': (context) {
-          return SignInScreen(
-            actions: [
-              ForgotPasswordAction((context, email) {
-                Navigator.pushNamed(
-                  context,
-                  '/forgot-password',
-                  arguments: {'email': email},
-                );
-              }),
-              VerifyPhoneAction((context, _) {
-                Navigator.pushNamed(context, '/phone');
-              }),
-              AuthStateChangeAction<SignedIn>((context, state) {
-                if (!state.user!.emailVerified) {
-                  Navigator.pushNamed(context, '/verify-email');
-                } else {
-                  Navigator.pushReplacementNamed(context, '/profile');
-                }
-              }),
-              AuthStateChangeAction<UserCreated>((context, state) {
-                if (!state.credential.user!.emailVerified) {
-                  Navigator.pushNamed(context, '/verify-email');
-                } else {
-                  Navigator.pushReplacementNamed(context, '/profile');
-                }
-              }),
-              AuthStateChangeAction<CredentialLinked>((context, state) {
-                if (!state.user.emailVerified) {
-                  Navigator.pushNamed(context, '/verify-email');
-                } else {
-                  Navigator.pushReplacementNamed(context, '/profile');
-                }
-              }),
-              mfaAction,
-              EmailLinkSignInAction((context) {
-                Navigator.pushReplacementNamed(context, '/email-link-sign-in');
-              }),
-            ],
-            styles: const {
-              EmailFormStyle(signInButtonVariant: ButtonVariant.filled),
-            },
-            headerBuilder: headerImage('assets/images/flutterfire_logo.png'),
-            sideBuilder: sideImage('assets/images/flutterfire_logo.png'),
-            subtitleBuilder: (context, action) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(
-                  action == AuthAction.signIn
-                      ? 'Welcome to Firebase UI! Please sign in to continue.'
-                      : 'Welcome to Firebase UI! Please create an account to continue',
-                ),
-              );
-            },
-            footerBuilder: (context, action) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: Text(
-                    action == AuthAction.signIn
-                        ? 'By signing in, you agree to our terms and conditions.'
-                        : 'By registering, you agree to our terms and conditions.',
-                    style: const TextStyle(color: Colors.grey),
+          return StreamBuilder(
+              stream: FirebaseAuth.instance.authStateChanges().map((user) => {
+                    if (user != null) {context.go("/profile")}
+                  }),
+              builder: (context, snapshot) {
+                return Scaffold(
+                  body: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ElevatedButton(
+                            onPressed: () async {
+                              // Create a new provider
+                              GoogleAuthProvider googleProvider =
+                                  GoogleAuthProvider();
+                              await FirebaseAuth.instance
+                                  .signInWithRedirect(googleProvider);
+                            },
+                            child: const Text('Google Sign in - Web')),
+                        const SizedBox(height: 20),
+                        ElevatedButton(
+                            onPressed: () async {
+                              // Trigger the authentication flow
+                              final GoogleSignInAccount? googleUser =
+                                  await GoogleSignIn().signIn();
+                              // Obtain the auth details from the request
+                              final GoogleSignInAuthentication? googleAuth =
+                                  await googleUser?.authentication;
+                              // Create a new credential
+                              final credential = GoogleAuthProvider.credential(
+                                accessToken: googleAuth?.accessToken,
+                                idToken: googleAuth?.idToken,
+                              );
+                              // Once signed in, return the UserCredential
+                              await FirebaseAuth.instance
+                                  .signInWithCredential(credential);
+                            },
+                            child: const Text('Google Sign in - Mobile')),
+                        const SizedBox(height: 20),
+                        AuthStateListener<OAuthController>(
+                          child: OAuthProviderButton(
+                            provider: GoogleProvider(
+                                clientId: "YOUR_GOOGLE_CLIENT_ID"),
+                          ),
+                          listener: (oldState, newState, ctrl) {
+                            if (newState is SignedIn) {
+                              context.go("/profile");
+                            }
+                            return null;
+                          },
+                        )
+                      ],
+                    ),
                   ),
-                ),
-              );
-            },
-          );
+                );
+              });
         },
         '/verify-email': (context) {
           return EmailVerificationScreen(
